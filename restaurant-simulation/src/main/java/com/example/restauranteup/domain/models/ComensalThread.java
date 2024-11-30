@@ -63,7 +63,6 @@ public class ComensalThread extends Thread {
         comer();
         liberarMesa();
     }
-
     /**
      * Ciclo de espera por una mesa disponible.
      */
@@ -94,7 +93,7 @@ public class ComensalThread extends Thread {
                 eventBus.notifyObservers("NEW_COMENSAL", this);
                 System.out.println("Comensal " + comensalId + " asignado a mesa " + mesaId + " está comiendo.");
 
-                int tiempoComida = new Random().nextInt(5) + 3; // Tiempo entre 3 y 7 segundos
+                int tiempoComida = new Random().nextInt(5) + 1;
                 Thread.sleep(tiempoComida * 1000L);
                 System.out.println("Comensal " + comensalId + " terminó de comer en la mesa " + mesaId + ".");
             }

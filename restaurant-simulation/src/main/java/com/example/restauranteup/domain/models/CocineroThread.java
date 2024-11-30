@@ -5,15 +5,15 @@ import java.util.Random;
 
 public class CocineroThread extends Thread {
 
-    private final int id;
+    private final int cocineroId;
     private boolean ocupado;
     private int tiempoCoccion;
     private final Queue<Orden> bufferOrdenes;
     private final Queue<Comida> bufferComidas;
     private final EventBus eventBus;
 
-    public CocineroThread(int id, Queue<Orden> bufferOrdenes, Queue<Comida> bufferComidas, EventBus eventBus) {
-        this.id = id;
+    public CocineroThread(int cocineroId, Queue<Orden> bufferOrdenes, Queue<Comida> bufferComidas, EventBus eventBus) {
+        this.cocineroId = cocineroId;
         this.bufferOrdenes = bufferOrdenes;
         this.bufferComidas = bufferComidas;
         this.eventBus = eventBus;
@@ -58,7 +58,7 @@ public class CocineroThread extends Thread {
         tiempoCoccion = random.nextInt(3001) + 3000; // Tiempo de cocción entre 3000 y 6000 ms
 
         ocupado = true;
-        System.out.println("Cocinero " + id + " cocinando orden " + orden.getId() +
+        System.out.println("Cocinero " + cocineroId + " cocinando orden " + orden.getId() +
                 " para la mesa " + orden.getIdMesa() + " durante " + (tiempoCoccion / 1000) + " segundos");
 
         // Notificar que el cocinero está cocinando
@@ -88,6 +88,6 @@ public class CocineroThread extends Thread {
 
     @Override
     public String toString() {
-        return "Cocinero{id=" + id + ", ocupado=" + ocupado + "}";
+        return "Cocinero{id=" + cocineroId + ", ocupado=" + ocupado + "}";
     }
 }

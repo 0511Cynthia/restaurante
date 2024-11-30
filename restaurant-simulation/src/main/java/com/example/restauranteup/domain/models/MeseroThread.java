@@ -72,7 +72,7 @@ public class MeseroThread extends Thread {
         ocupado = true;
         this.comensalActual = comensal;
 
-        System.out.println("Mesero " + meseroId + " atendiendo al comensal " + comensal.getId() + " (1 seg)");
+        System.out.println("Mesero " + meseroId + " atendiendo al comensal " + comensal.getComensalId() + " (1 seg)");
         eventBus.notifyObservers("ATTEND_CLIENT", this);
 
         try {
