@@ -1,17 +1,9 @@
 package com.example.restauranteup;
-
-import java.io.File;
-
 import com.almasb.fxgl.app.GameApplication;
 import com.almasb.fxgl.app.GameSettings;
 import com.example.restauranteup.domain.models.EventBus;
-import com.example.restauranteup.infrastructure.ui.controller.FXGLRestauranteController;
-import java.net.URL;
-
-import javafx.scene.image.ImageView;
+import com.example.restauranteup.infrastructure.views.controller.FXGLRestauranteController;
 import javafx.scene.control.Button;
-import javafx.scene.image.Image;
-
 import com.almasb.fxgl.dsl.FXGL;
 
 public class App extends GameApplication {
@@ -35,21 +27,16 @@ public class App extends GameApplication {
         .at(0, 0)
         .buildAndAttach();
 
-        // Crear botón de inicio
         Button startButton = FXGL.getUIFactoryService().newButton("Iniciar Simulación");
 
-        // Configurar posición y acción del botón
-        startButton.setTranslateX(20); // Posición X
-        startButton.setTranslateY(20); // Posición Y
+        startButton.setTranslateX(20);
+        startButton.setTranslateY(20);
         startButton.setOnAction(e -> restaurante.simular());
 
         startButton.setStyle("-fx-background-color: white; -fx-background-radius: 5px; -fx-font-size: 8px; -fx-text-fill: black; -fx-padding: 5px 10px;");
 
-        // Agregar el botón a la escena de FXGL
         FXGL.getGameScene().addUINode(startButton);
 
-
-        // Inicializar EventBus y Controller
         eventBus = new EventBus();
         restauranteController = new FXGLRestauranteController(eventBus);
         restaurante = new Restaurante(10, 1, 1, 100, eventBus);

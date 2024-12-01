@@ -127,17 +127,23 @@ public class FXGLRestauranteController implements Observer {
             }
         });
     }
-    
+
     public void moveComensalToMesa(ComensalThread comensal) {
         Platform.runLater(() -> {
-            Entity comensalEntity = comensalesEntities.get(comensal.getComensalId());
-            if (comensalEntity == null) {
-                System.out.println("Comensal no encontrado: " + comensal.getComensalId());
+            // Obtener y eliminar al comensal más antiguo de la cola
+            ComensalThread nextComensal = comensalQueue.poll(); 
+            if (nextComensal == null) {
+                System.out.println("No hay comensales en la cola.");
                 return;
             }
-
-            comensalQueue.remove(comensal); // Eliminar de la cola lógica
-            comensalesEnMesas.add(comensal); // Agregar a comensales en mesas
+    
+            Entity comensalEntity = comensalesEntities.get(nextComensal.getComensalId());
+            if (comensalEntity == null) {
+                System.out.println("Entidad de comensal no encontrada: " + nextComensal.getComensalId());
+                return;
+            }
+    
+            comensalesEnMesas.add(nextComensal); // Agregar a lista de comensales en mesas
     
             int mesaId = comensal.getMesaId();
             if (mesaId >= 0 && mesaId <= mesas.size()) {
@@ -166,7 +172,7 @@ public class FXGLRestauranteController implements Observer {
             // Liberar la mesa y ocultar el plato
             int mesaId = comensal.getMesaId();
             if (mesaId >= 0 && mesaId <= mesas.size()) {
-                comensalesEnMesas.remove(comensal.getComensalId());
+                //comensalesEnMesas.remove(comensal.getComensalId());
                 Entity plato = platos.get(mesaId);
                 plato.getViewComponent().setVisible(false); // Ocultar el plato
                 System.out.println("FXGL!!! Mesa " + mesaId + " liberada.");
@@ -178,14 +184,18 @@ public class FXGLRestauranteController implements Observer {
     private void handleChefCooking() {
         System.out.println("FXGL!!! Chef está cocinando.");
     
-        FXGL.animationBuilder()
-            .duration(Duration.seconds(1))
-            .repeatInfinitely()
-            .autoReverse(true)
-            .translate(cocinero)
-            .from(cocinero.getPosition())
-            .to(cocinero.getPosition().add(20, 0)) // Reducir el movimiento
-            .buildAndPlay(); // Cambiar a buildAndPlay()
+        double range = 20; // Rango de movimiento limitado
+    
+        chefAnimation = FXGL.animationBuilder()
+                .duration(Duration.seconds(1))
+                .repeatInfinitely()
+                .autoReverse(true)
+                .translate(cocinero)
+                .from(new Point2D(621, 19)) // Posición inicial
+                .to(new Point2D(621 + range, 19)) // Limitar movimiento a la derecha
+                .build();
+
+        chefAnimation.start();
     }
     
     /**
@@ -194,18 +204,17 @@ public class FXGLRestauranteController implements Observer {
     private void handleChefCooked() {
         System.out.println("FXGL!!! Chef terminó de cocinar.");
     
-        // Detener la animación si está en ejecución
         if (chefAnimation != null) {
-            chefAnimation.stop(); // Detener la animación
-            chefAnimation = null; // Liberar la referencia
+            chefAnimation.stop(); // Detener la animación en ejecución
+            chefAnimation = null; // Liberar referencia
         }
     
-        // Devolver al cocinero a su posición original
+        // Restaurar la posición original del cocinero
         FXGL.animationBuilder()
-            .duration(Duration.seconds(1)) // Duración corta
-            .translate(cocinero)
-            .to(cocinero.getPosition()) // Asegurarse de que regrese a su posición inicial
-            .buildAndPlay(); // Ejecutar la animación de retorno
+                .duration(Duration.seconds(1))
+                .translate(cocinero)
+                .to(new Point2D(621, 19)) // Posición inicial fija
+                .buildAndPlay();
     }
     
     private void handleAttendClient(Object data) {
@@ -217,7 +226,7 @@ public class FXGLRestauranteController implements Observer {
     
             // Crear y ejecutar la animación directamente
             FXGL.animationBuilder()
-                .duration(Duration.seconds(0.6))
+                .duration(Duration.seconds(1))
                 .translate(mesero)
                 .from(mesero.getPosition())
                 .to(mesa.getPosition().subtract(20, 0))
