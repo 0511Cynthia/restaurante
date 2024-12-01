@@ -53,13 +53,13 @@ public class FXGLRestauranteController implements Observer {
         cocinero = FXGL.entityBuilder()
                 .zIndex(2)
                 .at(621, 19)
-                .view(FXGL.getAssetLoader().loadTexture("cocinero.png", 112, 120))
+                .view(FXGL.getAssetLoader().loadTexture("cocinero.png", 95, 110))
                 .buildAndAttach();
 
         mesero = FXGL.entityBuilder()
                 .zIndex(2)
                 .at(MESERO_ORIGINAL_POSITION)
-                .view(FXGL.getAssetLoader().loadTexture("mesero.png", 40, 80))
+                .view(FXGL.getAssetLoader().loadTexture("mesero.png", 95, 110))
                 .buildAndAttach();
 
         initMesasYPlatos();
@@ -104,7 +104,7 @@ public class FXGLRestauranteController implements Observer {
             Entity comensalEntity = FXGL.entityBuilder()
                     .zIndex(2)
                     .at(startX, startY)
-                    .view(FXGL.getAssetLoader().loadTexture(clienteAsset, 40, 80))
+                    .view(FXGL.getAssetLoader().loadTexture(clienteAsset, 70, 85))
                     .with("type", "comensal")
                     .with("id", comensal.getComensalId())
                     .buildAndAttach();
@@ -226,7 +226,7 @@ public class FXGLRestauranteController implements Observer {
                 .duration(Duration.seconds(1))
                 .translate(mesero)
                 .from(mesero.getPosition())
-                .to(mesa.getPosition().subtract(20, 0))
+                .to(mesa.getPosition().subtract(50, 0))
                 .buildAndPlay();
         });
     }
@@ -246,6 +246,9 @@ public class FXGLRestauranteController implements Observer {
 
         Platform.runLater(() -> {
             Entity mesa = mesas.get(mesaId);
+
+            Entity plato = platos.get(mesaId);
+            plato.getViewComponent().setVisible(true);
             
             FXGL.animationBuilder()
                     .duration(Duration.seconds(0.6))
@@ -254,9 +257,6 @@ public class FXGLRestauranteController implements Observer {
                     .buildAndPlay();
 
             regresarMesero();
-
-            Entity plato = platos.get(mesaId);
-            plato.getViewComponent().setVisible(true);
         });
     }
 
