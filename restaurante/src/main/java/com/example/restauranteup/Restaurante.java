@@ -4,6 +4,9 @@ import java.util.*;
 import java.util.concurrent.*;
 
 import com.example.restauranteup.domain.models.*;
+import com.example.restauranteup.domain.models.threads.CocineroThread;
+import com.example.restauranteup.domain.models.threads.ComensalThread;
+import com.example.restauranteup.domain.models.threads.MeseroThread;
 import com.example.restauranteup.infrastructure.DistribucionPoisson;
 
 public class Restaurante {

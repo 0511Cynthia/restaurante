@@ -1,5 +1,7 @@
 package com.example.restauranteup.domain.models;
 
+import com.example.restauranteup.domain.models.threads.ComensalThread;
+
 public class Orden {
     private int id;
     private final ComensalThread comensal;

@@ -1,9 +1,8 @@
-package com.example.restauranteup.domain.models;
+package com.example.restauranteup.domain.models.threads;
 
-import java.util.List;
-import java.util.Queue;
 import java.util.Random;
 import com.example.restauranteup.Restaurante;
+import com.example.restauranteup.domain.models.Orden;
 
 public class ComensalThread extends Thread {
     private final int comensalId;

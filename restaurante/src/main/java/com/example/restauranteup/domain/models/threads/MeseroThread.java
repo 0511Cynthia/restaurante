@@ -1,6 +1,10 @@
-package com.example.restauranteup.domain.models;
+package com.example.restauranteup.domain.models.threads;
 
 import java.util.Queue;
+
+import com.example.restauranteup.domain.models.Comida;
+import com.example.restauranteup.domain.models.EventBus;
+import com.example.restauranteup.domain.models.Orden;
 
 public class MeseroThread extends Thread {
 
