@@ -55,7 +55,7 @@ public class CocineroThread extends Thread {
 
     private void prepararOrden(Orden orden) {
         Random random = new Random();
-        tiempoCoccion = random.nextInt(3001) + 3000; // Tiempo de cocción entre 3000 y 6000 ms
+        tiempoCoccion = (random.nextInt(2) + 2) * 1000; // Tiempo de cocción entre 2 y 3 s
 
         ocupado = true;
         System.out.println("Cocinero " + cocineroId + " cocinando orden " + orden.getId() +

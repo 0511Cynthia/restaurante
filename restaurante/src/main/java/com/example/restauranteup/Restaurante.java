@@ -7,7 +7,10 @@ import com.example.restauranteup.domain.models.*;
 import com.example.restauranteup.infrastructure.DistribucionPoisson;
 
 public class Restaurante {
-    private final int maximoComensales;
+    private final Object lockMesas = new Object(); // Monitor para mesas
+    private final Object lockComensalesEnEspera = new Object(); // Monitor para comensales en espera
+    private final Object lockComensalesEnMesas = new Object(); // Monitor para comensales en mesas
+
     private final Queue<ComensalThread> comensalesEnEspera;
     private final Queue<ComensalThread> comensalesEnMesas;
     private final List<Boolean> mesas;
@@ -28,8 +31,6 @@ public class Restaurante {
         this.mesas = new ArrayList<>(Collections.nCopies(capacidad, false)); // Todas las mesas libres
         this.bufferOrdenes = new LinkedBlockingQueue<>();
         this.bufferComidas = new LinkedBlockingQueue<>();
-        this.maximoComensales = maximoComensales;
-        this.comensalId = 0;
         this.eventBus = eventBus;
 
         this.meseros = new ArrayList<>();
@@ -54,96 +55,40 @@ public class Restaurante {
         // Iniciar hilos de cocineros
         cocineros.forEach(Thread::start);
 
-        // Iniciar hilo recepcionista
-        Thread recepcionista = new Thread(this::asignarMesas);
-        recepcionista.setName("Recepcionista");
-        recepcionista.start();
+        // Generar comensales
+        generarComensales();
+    }
 
-        // Hilo para generar comensales
+    private void generarComensales() {
         new Thread(() -> {
-            while (comensalId < maximoComensales) { // Generar hasta n comensales
-                int intervalo = distribucionPoisson.generar(); // Genera el intervalo en segundos
+            while (comensalId < 50) { // Generar hasta n comensales
+                int intervalo = distribucionPoisson.generar(); // Generar intervalo en segundos
 
-                // Crear un nuevo comensal y asignarlo a la espera
                 ComensalThread nuevoComensal = new ComensalThread(
                         comensalId++,
-                        comensalesEnEspera,
-                        comensalesEnMesas,
-                        mesas,
-                        eventBus
+                        this
                 );
 
-                synchronized (comensalesEnEspera) {
+                synchronized (lockComensalesEnEspera) {
                     comensalesEnEspera.add(nuevoComensal);
+                    eventBus.notifyObservers("NEW_QUEUE_COMENSAL", nuevoComensal);
                     System.out.println("Nuevo comensal " + nuevoComensal.getComensalId() + " llegando.");
-                    comensalesEnEspera.notifyAll();
+                    lockComensalesEnEspera.notifyAll(); // Notificar que hay un nuevo comensal
                 }
 
-                // Iniciar el hilo del comensal
                 nuevoComensal.start();
 
-                // Simular el intervalo entre llegadas
                 try {
                     Thread.sleep(intervalo * 1000L);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    break;
                 }
             }
 
-            System.out.println("Generación de comensales finalizada. Total: " + comensalId);
+            System.out.println("Generación de comensales finalizada.");
         }).start();
     }
 
-    /**
-     * Hilo recepcionista: asigna mesas a los comensales en espera.
-     */
-    private void asignarMesas() {
-        while (true) {
-            synchronized (comensalesEnEspera) {
-                while (comensalesEnEspera.isEmpty()) {
-                    try {
-                        comensalesEnEspera.wait(); // Esperar si no hay comensales en la cola
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
-                }
-
-                ComensalThread comensal = comensalesEnEspera.poll(); // Obtener el siguiente comensal
-                if (comensal != null) {
-                    synchronized (mesas) {
-                        int mesaDisponible = buscarMesaLibre();
-                        if (mesaDisponible != -1) {
-                            mesas.set(mesaDisponible, true); // Marcar la mesa como ocupada
-                            comensal.setMesaId(mesaDisponible);
-                            synchronized (comensalesEnMesas) {
-                                comensalesEnMesas.add(comensal);
-                                comensalesEnMesas.notifyAll();
-                            }
-                            System.out.println("Recepcionista asignó mesa " + mesaDisponible + " al comensal " + comensal.getComensalId());
-                        } else {
-                            //System.out.println("Recepcionista no encontró mesas libres para el comensal " + comensal.getComensalId());
-                            comensalesEnEspera.add(comensal); // Volver a poner al comensal en la cola
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Buscar una mesa libre.
-     * @return El índice de la mesa libre o -1 si no hay ninguna disponible.
-     */
-    private int buscarMesaLibre() {
-        for (int i = 0; i < mesas.size(); i++) {
-            if (!mesas.get(i)) { // Si la mesa está libre
-                return i;
-            }
-        }
-        return -1; // No hay mesas disponibles
-    }
 
     public void detenerSimulacion() {
         // Interrumpir todos los hilos activos
@@ -153,5 +98,34 @@ public class Restaurante {
         comensalesEnEspera.forEach(Thread::interrupt);
 
         System.out.println("Simulación detenida.");
+    }
+
+    public int asignarMesa(ComensalThread comensal) {
+        synchronized (lockMesas) {
+            for (int i = 0; i < mesas.size(); i++) {
+                if (!mesas.get(i)) { // Si la mesa está libre
+                    mesas.set(i, true);
+                    comensal.setMesaId(i);
+                    synchronized (comensalesEnMesas) {
+                        comensalesEnMesas.add(comensal);
+                        eventBus.notifyObservers("NEW_COMENSAL", comensal);
+                        comensalesEnMesas.notifyAll(); // Notificar que hay un nuevo comensal en mesa
+                    }
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    public void liberarMesa(int mesaId, ComensalThread comensal) {
+        synchronized (lockMesas) {
+            mesas.set(mesaId, false); // Liberar la mesa
+            System.out.println("Mesa " + mesaId + " liberada por comensal " + comensal.getComensalId());
+            synchronized (lockComensalesEnMesas) {
+                comensalesEnMesas.remove(comensal);
+                eventBus.notifyObservers("EXIT_COMENSAL", comensal);
+            }
+        }
     }
 }

@@ -3,29 +3,17 @@ package com.example.restauranteup.domain.models;
 import java.util.List;
 import java.util.Queue;
 import java.util.Random;
+import com.example.restauranteup.Restaurante;
 
 public class ComensalThread extends Thread {
-
     private final int comensalId;
-    private boolean atendido;
+    private final Restaurante restaurante; // Referencia al restaurante
     private Orden orden;
     private int mesaId;
-    private final Queue<ComensalThread> comensalesEnEspera;
-    private final Queue<ComensalThread> comensalesEnMesas;
-    private final List<Boolean> mesas;
-    private final EventBus eventBus;
 
-    public ComensalThread(int comensalId, 
-                          Queue<ComensalThread> comensalesEnEspera,
-                          Queue<ComensalThread> comensalesEnMesas, 
-                          List<Boolean> mesas, 
-                          EventBus eventBus) {
+    public ComensalThread(int comensalId, Restaurante restaurante) {
         this.comensalId = comensalId;
-        this.comensalesEnEspera = comensalesEnEspera;
-        this.comensalesEnMesas = comensalesEnMesas;
-        this.mesas = mesas;
-        this.eventBus = eventBus;
-        this.atendido = false;
+        this.restaurante = restaurante;
         this.mesaId = -1;
     }
 
@@ -41,14 +29,6 @@ public class ComensalThread extends Thread {
         this.mesaId = mesaId;
     }
 
-    public boolean isAtendido() {
-        return atendido;
-    }
-
-    public void setAtendido(boolean atendido) {
-        this.atendido = atendido;
-    }
-
     public Orden getOrden() {
         return orden;
     }
@@ -59,89 +39,57 @@ public class ComensalThread extends Thread {
 
     @Override
     public void run() {
-        esperarMesa();
-        comer();
-        liberarMesa();
-    }
-    /**
-     * Ciclo de espera por una mesa disponible.
-     */
-    private void esperarMesa() {
-        synchronized (comensalesEnEspera) {
-            comensalesEnEspera.add(this);
-            eventBus.notifyObservers("NEW_QUEUE_COMENSAL", this);
-            System.out.println("Comensal " + comensalId + " esperando una mesa.");
-
-            while (mesaId == -1) { // Esperar hasta que se asigne una mesa
-                try {
-                    comensalesEnEspera.wait();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
+        if (!esperarYAsignarMesa()) {
+            System.out.println("Comensal " + comensalId + " no pudo obtener mesa y abandonó el restaurante.");
+            return;
         }
     }
 
     /**
-     * Ciclo de comer en la mesa.
+     * Intentar asignar una mesa llamando al restaurante.
+     * @return true si se asignó una mesa, false si no.
      */
-    private void comer() {
-        try {
-            synchronized (comensalesEnMesas) {
-                comensalesEnMesas.add(this);
-                eventBus.notifyObservers("NEW_COMENSAL", this);
-                System.out.println("Comensal " + comensalId + " asignado a mesa " + mesaId + " está comiendo.");
-
-                int tiempoComida = new Random().nextInt(5) + 1;
-                Thread.sleep(tiempoComida * 1000L);
-                System.out.println("Comensal " + comensalId + " terminó de comer en la mesa " + mesaId + ".");
+    private boolean esperarYAsignarMesa() {
+        synchronized (restaurante) {
+            while (mesaId == -1) { // Mientras no tenga mesa asignada
+                mesaId = restaurante.asignarMesa(this); // Solicitar mesa al restaurante
+                if (mesaId == -1) { // Si no hay mesas disponibles
+                    try {
+                        restaurante.wait(); // Esperar que una mesa quede libre
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return false;
+                    }
+                }
             }
+        }
+        return true;
+    }
+
+    /**
+     * Simular el tiempo de comida del comensal.
+     */
+    public void comer() {
+        System.out.println("Comensal " + comensalId + " asignado a mesa " + mesaId + " está comiendo.");
+        try {
+            int tiempoComida = new Random().nextInt(4) + 2; // Tiempo en segundos (entre 2 y 5)
+            Thread.sleep(tiempoComida * 1000L);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        System.out.println("Comensal " + comensalId + " terminó de comer en la mesa " + mesaId + ".");
+        liberarMesa();
     }
 
     /**
-     * Liberar la mesa ocupada y notificar al sistema.
+     * Liberar la mesa después de comer.
      */
     private void liberarMesa() {
-        synchronized (mesas) {
-            mesas.set(mesaId, false); // Marcar la mesa como libre
-            System.out.println("Mesa " + mesaId + " liberada por comensal " + comensalId + ".");
-            mesas.notifyAll(); // Notificar que hay una mesa disponible
-        }
-
-        synchronized (comensalesEnMesas) {
-            comensalesEnMesas.remove(this);
-            eventBus.notifyObservers("EXIT_COMENSAL", this);
-        }
-    }
-
-    /**
-     * Asigna una mesa libre al comensal.
-     * @return true si se asigna una mesa, false si no hay disponibles.
-     */
-    public synchronized boolean asignarMesa() {
-        synchronized (mesas) {
-            for (int i = 0; i < mesas.size(); i++) {
-                if (!mesas.get(i)) { // Si la mesa está libre
-                    mesas.set(i, true); // Ocupar la mesa
-                    setMesaId(i);
-                    System.out.println("Mesa " + i + " asignada al comensal " + comensalId + ".");
-                    synchronized (comensalesEnEspera) {
-                        comensalesEnEspera.remove(this); // Retirar de la cola de espera
-                        comensalesEnEspera.notifyAll(); // Notificar a otros comensales
-                    }
-                    return true;
-                }
-            }
-        }
-        return false; // No hay mesas disponibles
+        restaurante.liberarMesa(mesaId, this); // Notificar al restaurante
     }
 
     @Override
     public String toString() {
-        return "Comensal{id=" + comensalId + ", atendido=" + atendido + ", mesaId=" + mesaId + "}";
+        return "Comensal{id=" + comensalId + ", mesaId=" + mesaId + "}";
     }
 }

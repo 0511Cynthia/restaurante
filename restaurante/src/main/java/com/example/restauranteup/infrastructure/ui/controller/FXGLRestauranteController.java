@@ -3,171 +3,284 @@ package com.example.restauranteup.infrastructure.ui.controller;
 import com.almasb.fxgl.dsl.FXGL;
 import com.almasb.fxgl.entity.Entity;
 import com.example.restauranteup.domain.models.EventBus;
+import com.example.restauranteup.domain.models.ComensalThread;
 import com.example.restauranteup.domain.interfaces.Observer;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javafx.application.Platform;
+import javafx.geometry.Point2D;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+
+import com.almasb.fxgl.animation.Animation;
+import javafx.util.Duration;
 
 public class FXGLRestauranteController implements Observer {
 
     private final List<Entity> mesas;
     private final Entity stage;
     private final Entity cocinero;
+    private final Entity mesero; // Entidad para el mesero
     private final EventBus eventBus;
 
-    // Mapa para manejar comensales y sus entidades gráficas
-    private final Map<Integer, Entity> comensalesEntities = new ConcurrentHashMap<>();
     private final List<Entity> platos = new ArrayList<>();
     private static final String[] CLIENT_ASSETS = {
             "cliente_1.png", "cliente_2.png", "cliente_3.png", "cliente_4.png", 
             "cliente_5.png", "cliente_6.png", "cliente_7.png", "cliente_8.png"
     };
-    private int controlMesas = 1; // Control de rotación de mesas
+    private Animation<?> chefAnimation;
+    private Animation<?> meseroAnimation; // Animación del mesero
     private Random random = new Random();
+
+    private final Map<Integer, Entity> comensalesEntities = new ConcurrentHashMap<>();
+    private final Queue<ComensalThread> comensalQueue = new LinkedList<>();
+    private final List<ComensalThread> comensalesEnMesas = new ArrayList<>();
+
+    private static final Point2D MESERO_ORIGINAL_POSITION = new Point2D(750, 19);
 
     public FXGLRestauranteController(EventBus eventBus) {
         this.eventBus = eventBus;
         this.mesas = new ArrayList<>();
 
-        //FXGL.getGameScene().setBackgroundRepeat("bg.png");
+        eventBus.subscribe(this);
 
-        // Crear la escena estática
         stage = FXGL.entityBuilder()
                 .view(new Rectangle(980, 560, Color.LIGHTGRAY))
                 .buildAndAttach();
 
-        // Crear y agregar el cocinero
         cocinero = FXGL.entityBuilder()
                 .zIndex(2)
                 .at(621, 19)
                 .view(FXGL.getAssetLoader().loadTexture("cocinero.png", 112, 120))
                 .buildAndAttach();
 
-        // Crear y agregar las mesas y platos
+        mesero = FXGL.entityBuilder()
+                .zIndex(2)
+                .at(MESERO_ORIGINAL_POSITION)
+                .view(FXGL.getAssetLoader().loadTexture("mesero.png", 40, 80))
+                .buildAndAttach();
+
         initMesasYPlatos();
     }
 
-    /**
-     * Inicializar las mesas y los platos.
-     */
     private void initMesasYPlatos() {
-        // Coordenadas y tamaños de las mesas y sus platos
         double[][] mesasCoords = {
-                {277, 210}, {399, 210}, {519, 210}, {638, 210}, {755, 210}, // Fila superior
-                {277, 370}, {405, 370}, {527, 370}, {650, 370}, {762, 370}  // Fila inferior
+            {277, 210}, {399, 210}, {519, 210}, {638, 210}, {755, 210},
+            {277, 370}, {405, 370}, {527, 370}, {650, 370}, {762, 370}
         };
 
         for (int i = 0; i < mesasCoords.length; i++) {
-            // Crear mesa
-            // Entity mesa = FXGL.entityBuilder()
-            //         .at(mesasCoords[i][0], mesasCoords[i][1])
-            //         .view(FXGL.getAssetLoader().loadTexture("mesa.png", 60, 60))
-            //         .buildAndAttach();
-
-                        // Crear una entidad lógica para la mesa (sin imagen)
-        Entity mesa = FXGL.entityBuilder()
-                .at(mesasCoords[i][0], mesasCoords[i][1])
-                .with("type", "mesa")
-                .with("id", i + 1)
-                .buildAndAttach();
+            Entity mesa = FXGL.entityBuilder()
+                    .at(mesasCoords[i][0], mesasCoords[i][1])
+                    .with("type", "mesa")
+                    .with("id", i + 1)
+                    .buildAndAttach();
             mesas.add(mesa);
 
-            // Crear plato
             Entity plato = FXGL.entityBuilder()
                     .zIndex(2)
-                    .at(mesasCoords[i][0] + 10, mesasCoords[i][1] - 20) // Ajuste de posición
+                    .at(mesasCoords[i][0] + 10, mesasCoords[i][1] - 20)
                     .view(FXGL.getAssetLoader().loadTexture("aguachile.png", 30, 30))
-                    .build();
-            plato.setProperty("visible", false); // Inicialmente invisible
+                    .buildAndAttach();
+
+            plato.getViewComponent().setVisible(false);
             platos.add(plato);
-            FXGL.getGameWorld().addEntity(plato);
         }
     }
 
+    public void addComensalToQueue(ComensalThread comensal) {
+        Platform.runLater(() -> {
+            // Agregar comensal a la cola lógica
+            comensalQueue.add(comensal);
+    
+            double startX = 1000; // Posición inicial fuera de pantalla
+            double startY = 450;
+            double spacing = 40; // Espaciado entre comensales en la cola
+    
+            // Elegir textura aleatoria para el comensal
+            String clienteAsset = CLIENT_ASSETS[random.nextInt(CLIENT_ASSETS.length)];
+            Entity comensalEntity = FXGL.entityBuilder()
+                    .zIndex(2)
+                    .at(startX, startY)
+                    .view(FXGL.getAssetLoader().loadTexture(clienteAsset, 40, 80))
+                    .with("type", "comensal")
+                    .with("id", comensal.getComensalId())
+                    .buildAndAttach();
+    
+            // Asociar la entidad con el ID del comensal
+            comensalesEntities.put(comensal.getComensalId(), comensalEntity);
+    
+            // Renderizar la cola basada en `comensalQueue`
+            List<ComensalThread> queueList = new ArrayList<>(comensalQueue);
+            for (int i = 0; i < queueList.size(); i++) {
+                int comensalId = queueList.get(i).getComensalId();
+                Entity entity = comensalesEntities.get(comensalId);
+                if (entity != null) {
+                    FXGL.animationBuilder()
+                            .duration(Duration.seconds(1))
+                            .translate(entity)
+                            .to(new Point2D(100 + i * spacing, startY))
+                            .buildAndPlay();
+                }
+            }
+        });
+    }
+    
+    public void moveComensalToMesa(ComensalThread comensal) {
+        Platform.runLater(() -> {
+            Entity comensalEntity = comensalesEntities.get(comensal.getComensalId());
+            if (comensalEntity == null) {
+                System.out.println("Comensal no encontrado: " + comensal.getComensalId());
+                return;
+            }
+
+            comensalQueue.remove(comensal); // Eliminar de la cola lógica
+            comensalesEnMesas.add(comensal); // Agregar a comensales en mesas
+    
+            int mesaId = comensal.getMesaId();
+            if (mesaId >= 0 && mesaId <= mesas.size()) {
+                Entity mesa = mesas.get(mesaId);
+    
+                // Animar movimiento del comensal hacia la mesa
+                FXGL.animationBuilder()
+                        .duration(Duration.seconds(2))
+                        .translate(comensalEntity)
+                        .to(mesa.getPosition().add(10, 10))
+                        .buildAndPlay();
+            }
+        });
+    }
+    
+    public void liberarMesa(ComensalThread comensal) {
+        Platform.runLater(() -> {
+            // Eliminar la entidad gráfica del comensal
+            Entity comensalEntity = comensalesEntities.get(comensal.getComensalId());
+            if (comensalEntity != null) {
+                comensalEntity.removeFromWorld(); // Eliminar del mundo
+                comensalesEntities.remove(comensal.getComensalId()); // Remover de entidades activas
+                System.out.println("FXGL!!! Comensal " + comensal.getComensalId() + " dejó el restaurante.");
+            }
+    
+            // Liberar la mesa y ocultar el plato
+            int mesaId = comensal.getMesaId();
+            if (mesaId >= 0 && mesaId <= mesas.size()) {
+                comensalesEnMesas.remove(comensal.getComensalId());
+                Entity plato = platos.get(mesaId);
+                plato.getViewComponent().setVisible(false); // Ocultar el plato
+                System.out.println("FXGL!!! Mesa " + mesaId + " liberada.");
+            }
+        });
+    }
+    
+
+    private void handleChefCooking() {
+        System.out.println("FXGL!!! Chef está cocinando.");
+    
+        FXGL.animationBuilder()
+            .duration(Duration.seconds(1))
+            .repeatInfinitely()
+            .autoReverse(true)
+            .translate(cocinero)
+            .from(cocinero.getPosition())
+            .to(cocinero.getPosition().add(20, 0)) // Reducir el movimiento
+            .buildAndPlay(); // Cambiar a buildAndPlay()
+    }
+    
     /**
-     * Agregar un comensal en la cola.
+     * Maneja el evento CHEF_COOKED: Detener el movimiento del cocinero.
      */
-    public void addComensalToQueue(int comensalId) {
-        double startX = 1000 + comensalesEntities.size() * 150; // Posición inicial en X
-        double startY = 450; // Línea de entrada
+    private void handleChefCooked() {
+        System.out.println("FXGL!!! Chef terminó de cocinar.");
+    
+        // Detener la animación si está en ejecución
+        if (chefAnimation != null) {
+            chefAnimation.stop(); // Detener la animación
+            chefAnimation = null; // Liberar la referencia
+        }
+    
+        // Devolver al cocinero a su posición original
+        FXGL.animationBuilder()
+            .duration(Duration.seconds(1)) // Duración corta
+            .translate(cocinero)
+            .to(cocinero.getPosition()) // Asegurarse de que regrese a su posición inicial
+            .buildAndPlay(); // Ejecutar la animación de retorno
+    }
+    
+    private void handleAttendClient(Object data) {
+        int mesaId = (int) data;
+        if (mesaId < 0 || mesaId >= mesas.size()) return;
+    
+        Platform.runLater(() -> {
+            Entity mesa = mesas.get(mesaId);
+    
+            // Crear y ejecutar la animación directamente
+            FXGL.animationBuilder()
+                .duration(Duration.seconds(0.6))
+                .translate(mesero)
+                .from(mesero.getPosition())
+                .to(mesa.getPosition().subtract(20, 0))
+                .buildAndPlay();
+        });
+    }
+    
 
-        String clienteAsset = CLIENT_ASSETS[random.nextInt(CLIENT_ASSETS.length)];
-
-        // Crear entidad gráfica del comensal
-        Entity comensalEntity = FXGL.entityBuilder()
-                .zIndex(2)
-                .at(startX, startY)
-                .view(FXGL.getAssetLoader().loadTexture(clienteAsset, 40, 80))
-                .with("type", "comensal")
-                .with("id", comensalId)
-                .buildAndAttach();
-
-        comensalesEntities.put(comensalId, comensalEntity);
-        System.out.println("Comensal " + comensalId + " añadido a la fila.");
+    private void regresarMesero() {
+        Platform.runLater(() -> FXGL.animationBuilder()
+                .duration(Duration.seconds(1))
+                .translate(mesero)
+                .to(MESERO_ORIGINAL_POSITION)
+                .buildAndPlay());
     }
 
-    /**
-     * Mover un comensal a una mesa.
-     */
-    public void moveComensalToMesa(int comensalId) {
-        Entity comensalEntity = comensalesEntities.get(comensalId);
-        if (comensalEntity == null) {
-            System.out.println("Comensal no encontrado: " + comensalId);
-            return;
-        }
+    private void handleServeDish(Object data) {
+        int mesaId = (int) data;
+        if (mesaId < 0 || mesaId >= mesas.size()) return;
 
-        // Obtener la mesa asignada
-        if (controlMesas > mesas.size()) controlMesas = 1; // Reiniciar el control de mesas
-        Entity mesa = mesas.get(controlMesas - 1);
+        Platform.runLater(() -> {
+            Entity mesa = mesas.get(mesaId);
+            
+            meseroAnimation = FXGL.animationBuilder()
+                    .duration(Duration.seconds(0.6))
+                    .translate(mesero)
+                    .to(mesa.getPosition().subtract(20, 0))
+                    .build();
 
-        // Mover el comensal a la mesa
-        comensalEntity.setPosition(mesa.getPosition().add(10, 10)); // Ajustar posición a la mesa
-        System.out.println("Comensal " + comensalId + " asignado a la mesa " + controlMesas);
+            meseroAnimation.setOnFinished(() -> regresarMesero());
 
-        // Mostrar el plato correspondiente
-        Entity plato = platos.get(controlMesas - 1);
-        plato.setProperty("visible", true);
-        controlMesas++;
+            meseroAnimation.start();
+
+
+            Entity plato = platos.get(mesaId);
+            plato.getViewComponent().setVisible(true);
+        });
     }
 
-    /**
-     * Liberar la mesa ocupada y ocultar el plato.
-     */
-    public void liberarMesa(int comensalId) {
-        Entity comensalEntity = comensalesEntities.get(comensalId);
-        if (comensalEntity != null) {
-            comensalEntity.removeFromWorld();
-            comensalesEntities.remove(comensalId);
-            System.out.println("Comensal " + comensalId + " dejó el restaurante.");
-        }
-
-        if (controlMesas > 0 && controlMesas <= platos.size()) {
-            Entity plato = platos.get(controlMesas - 1);
-            plato.setProperty("visible", false);
-            System.out.println("Mesa " + controlMesas + " liberada.");
-        }
-    }
 
     @Override
     public void update(String event, Object data) {
-        // Manejo de eventos del sistema
-        switch (event) {
-            case "NEW_QUEUE_COMENSAL" -> {
-                int comensalId = (int) data;
-                addComensalToQueue(comensalId);
+        Platform.runLater(() -> {
+            switch (event) {
+                case "NEW_QUEUE_COMENSAL" -> {
+                    ComensalThread comensal = (ComensalThread) data;
+                    addComensalToQueue(comensal);
+                }
+                case "NEW_COMENSAL" -> {
+                    ComensalThread comensal = (ComensalThread) data;
+                    moveComensalToMesa(comensal);
+                }
+                case "EXIT_COMENSAL" -> {
+                    ComensalThread comensal = (ComensalThread) data;
+                    liberarMesa(comensal);
+                }
+                case "CHEF_COOKING" -> handleChefCooking();
+                case "CHEF_COOKED" -> handleChefCooked();
+                case "SERVE_DISH" -> handleServeDish(data);
+                case "ATTEND_CLIENT" -> handleAttendClient(data);
+                default -> System.out.println("Evento desconocido: " + event);
             }
-            case "NEW_COMENSAL" -> {
-                int comensalId = (int) data;
-                moveComensalToMesa(comensalId);
-            }
-            case "EXIT_COMENSAL" -> {
-                int comensalId = (int) data;
-                liberarMesa(comensalId);
-            }
-            default -> System.out.println("Evento desconocido: " + event);
-        }
+        });
     }
+    
 }

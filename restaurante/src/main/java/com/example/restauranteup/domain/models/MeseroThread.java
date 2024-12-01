@@ -51,6 +51,7 @@ public class MeseroThread extends Thread {
      */
     private void atenderComensal() {
         synchronized (comensalesEnMesas) {
+            
             while (comensalesEnMesas.isEmpty() || ocupado) {
                 try {
                     comensalesEnMesas.wait(); // Esperar si no hay comensales o si el mesero está ocupado
@@ -62,6 +63,7 @@ public class MeseroThread extends Thread {
 
             // Obtener el siguiente comensal en la cola
             ComensalThread comensal = comensalesEnMesas.poll();
+            
             if (comensal != null) {
                 atenderComensalInterno(comensal);
             }
@@ -73,7 +75,7 @@ public class MeseroThread extends Thread {
         this.comensalActual = comensal;
 
         System.out.println("Mesero " + meseroId + " atendiendo al comensal " + comensal.getComensalId() + " (1 seg)");
-        eventBus.notifyObservers("ATTEND_CLIENT", this);
+        eventBus.notifyObservers("ATTEND_CLIENT", comensal.getMesaId());
 
         try {
             Thread.sleep(1000); // Simular tiempo de atención
@@ -147,8 +149,10 @@ public class MeseroThread extends Thread {
      * Servir comida al comensal actual.
      */
     private void servirComida(Comida comida) {
-        System.out.println("Mesero " + meseroId + " sirviendo comida al comensal " + comensalActual.getId());
-        eventBus.notifyObservers("SERVE_DISH", this);
+        System.out.println("Mesero " + meseroId + " sirviendo comida al comensal " + comensalActual.getComensalId());
+        eventBus.notifyObservers("SERVE_DISH", comensalActual.getMesaId());
+
+        comensalActual.comer();
 
         // Finalizar interacción con el comensal actual
         comensalActual = null;
