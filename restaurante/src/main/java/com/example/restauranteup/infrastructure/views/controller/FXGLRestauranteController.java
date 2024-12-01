@@ -1,9 +1,9 @@
-package com.example.restauranteup.infrastructure.ui.controller;
+package com.example.restauranteup.infrastructure.views.controller;
 
 import com.almasb.fxgl.dsl.FXGL;
 import com.almasb.fxgl.entity.Entity;
 import com.example.restauranteup.domain.models.EventBus;
-import com.example.restauranteup.domain.models.ComensalThread;
+import com.example.restauranteup.domain.models.threads.ComensalThread;
 import com.example.restauranteup.domain.interfaces.Observer;
 
 import java.util.*;
@@ -184,18 +184,15 @@ public class FXGLRestauranteController implements Observer {
     private void handleChefCooking() {
         System.out.println("FXGL!!! Chef está cocinando.");
     
-        double range = 20; // Rango de movimiento limitado
-    
-        chefAnimation = FXGL.animationBuilder()
-                .duration(Duration.seconds(1))
-                .repeatInfinitely()
-                .autoReverse(true)
-                .translate(cocinero)
-                .from(new Point2D(621, 19)) // Posición inicial
-                .to(new Point2D(621 + range, 19)) // Limitar movimiento a la derecha
-                .build();
-
-        chefAnimation.start();
+        // Crear la animación de movimiento en loop
+        FXGL.animationBuilder()
+            .duration(Duration.seconds(1))
+            .repeatInfinitely()
+            .autoReverse(true)
+            .translate(cocinero)
+            .from(cocinero.getPosition())
+            .to(cocinero.getPosition().add(40, 0)) // Reducir el movimiento
+            .buildAndPlay(); // Cambiar a buildAndPlay()
     }
     
     /**
@@ -250,16 +247,13 @@ public class FXGLRestauranteController implements Observer {
         Platform.runLater(() -> {
             Entity mesa = mesas.get(mesaId);
             
-            meseroAnimation = FXGL.animationBuilder()
+            FXGL.animationBuilder()
                     .duration(Duration.seconds(0.6))
                     .translate(mesero)
                     .to(mesa.getPosition().subtract(20, 0))
-                    .build();
+                    .buildAndPlay();
 
-            meseroAnimation.setOnFinished(() -> regresarMesero());
-
-            meseroAnimation.start();
-
+            regresarMesero();
 
             Entity plato = platos.get(mesaId);
             plato.getViewComponent().setVisible(true);
